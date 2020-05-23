@@ -1,0 +1,168 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+require(igraph)
+library (scales)
+library(stringr)
+library(pals)
+library(ergm)
+library(ggplot2)
+library(dplyr)
+library(ggplot2)
+print("")
+```
+```{r}
+# get data
+data_sample <- read.csv("CleanedCommentsFinal.csv", stringsAsFactors = FALSE)
+head(data_sample)
+nrow(data_sample) # 124308
+```
+
+
+```{r}
+set.seed(1)
+
+# get smaller data for tests
+# data_sample_idx = sample(1:nrow(data), nrow(data)/10)
+# length(data_sample_idx) #  12430 comments
+# data_sample <- data[data_sample_idx,]
+
+# normalize date
+data_sample$date_new = substr(data_sample$Created.Date,1,nchar(data_sample$Created.Date)-9)
+
+# count number of comments per subreddit
+data_sample$count <- 1
+
+comments_by_subreddit <- aggregate(data_sample$count, by=list(Category=data_sample$Subreddit), FUN=sum)
+colnames(comments_by_subreddit) <- c("Subreddit", "Num_of_Comments")
+# number of different subreddits
+nrow(comments_by_subreddit)
+
+# most important subreddits
+comments_by_subreddit <- comments_by_subreddit[order(-comments_by_subreddit$Num_of_Comments),]
+head(comments_by_subreddit)
+```
+
+```{r}
+# cumsum plot
+
+# add zero starting point for plot
+zero_row <- c(0)
+comments_by_subreddit_plot <- rbind(zero_row, comments_by_subreddit)
+comments_by_subreddit_plot$cumsum <- cumsum(comments_by_subreddit_plot$Num_of_Comments)
+comments_by_subreddit_plot$cumsum_perc <- cumsum(comments_by_subreddit_plot$Num_of_Comments)/sum(comments_by_subreddit_plot$Num_of_Comments)
+
+# number of subreddits that contain 50% of the data
+x_line <- nrow(comments_by_subreddit_plot[which(comments_by_subreddit_plot$cumsum_perc <= .5),])
+
+ggplot() + 
+  geom_line(aes(x=1:nrow(comments_by_subreddit_plot),y=comments_by_subreddit_plot$cumsum_perc)) +  
+  xlab("Subreddits") + ylab("Percentage of Comments") + geom_vline(xintercept = x_line, color = "red", size=0.5) +
+  annotate(geom="text", x=x_line+ 100, y=.45, label=paste("50% of comments\nwere made in only \n",  as.character(x_line), 
+                                                          " subreddits.", sep=""),
+           color="red", lineheight = .8, hjust = 0) + theme_bw() +
+    labs(title = "Cummulative Sum of Comments that  mention \"Face Mask\" by Subreddit",
+              caption = "Data source: Reddit")
+
+ggplot() + 
+  geom_line(aes(x=1:nrow(comments_by_subreddit_plot),y=comments_by_subreddit_plot$cumsum)) +  
+  xlab("Subreddits") + ylab("Number of Comments") + geom_vline(xintercept = x_line, color = "red", size=0.5) +
+  annotate(geom="text", x=x_line+ 100, y=(sum(comments_by_subreddit_plot$Num_of_Comments)/2)*0.9, label=paste("50% of comments\nwere made in only \n",  as.character(x_line), " subreddits.", sep=""),
+              color="red", lineheight = .8, hjust = 0) + theme_bw() +
+  labs(title = "Cummulative Sum of Comments that  mention \"Face Mask\" by Subreddit",
+              caption = "Data source: Reddit")
+
+```
+
+# number of comments per day
+
+```{r}
+# comments_by_day <- aggregate(data_sample$count, by=list(Category=data_sample$date_new), FUN=sum)
+# colnames(comments_by_day) <- c("Day", "Num_of_Comments")
+# comments_by_day
+
+data_sample$date_new <- as.Date(data_sample$date_new, '%Y-%m-%d')
+
+number_of_days <- length(unique(data_sample$date_new))
+
+# based on https://stackoverflow.com/questions/10770698/
+ggplot(data_sample, aes(x=date_new)) + geom_histogram(binwidth=10/number_of_days, colour="black") +
+       scale_x_date(labels = date_format("%b-%d"),
+                    breaks = seq(min(data_sample$date_new)-5, max(data_sample$date_new)+5, 5))+ 
+  ylab("Number of Comments") + xlab("") + theme_bw() + theme(axis.text.x = element_text(angle = 90)) + 
+  labs(title = "Number of Comments over Time",
+              subtitle = "All comments mention \"Face Mask\"",
+              caption = "Data source: Reddit")
+```
+
+# vader files
+
+```{r}
+data <- read.csv("Comments_Vader.csv", stringsAsFactors = FALSE)
+colnames(data)
+nrow(data)
+# format the date column
+data$date_new = substr(data$Created.Date,1,nchar(data$Created.Date)-9)
+data$date_new <- as.Date(data$date_new, '%Y-%m-%d')
+```
+
+```{r}
+data_by_time <- aggregate(data$compound, by=list(Category=data$date_new), FUN=mean)
+colnames(data_by_time) <- c("date_new", "compound_mean")
+
+ggplot(data_by_time, aes(x=date_new, y=compound_mean)) +
+  xlab("") +
+  ylab("Average Compound VADER Score") +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) + theme_bw() + 
+  geom_smooth(method = 'loess', formula= y ~ x, se=TRUE, fullrange=FALSE, level=0.95, colour="white", alpha=.4, size=.5) +
+  geom_line(color="black") + 
+  labs(title = "Average Sentiment Score of Reddit comments mentioning \"Face Masks\"",
+              subtitle = "Smoothing: local regression fitting, 95%-confidence interval",
+              caption = "Data source: Reddit")
+```
+
+
+
+
+```{r}
+# create data to 
+data$count <- 1
+data_by_subreddit <- aggregate(data$count, by=list(Category=data$Subreddit), FUN=sum)
+colnames(data_by_subreddit) <- c("Subreddit", "Num_of_Comments")
+# number of different subreddits
+
+# most important subreddits
+data_by_subreddit <- data_by_subreddit[order(-data_by_subreddit$Num_of_Comments),]
+head(data_by_subreddit)
+
+# only keep subreddits that have more than 50 comments
+reduced_subreddits <- data_by_subreddit[which(data_by_subreddit$Num_of_Comments >= 50),]
+keep_these_subreddits <- reduced_subreddits$Subreddit
+
+# only keep comments from these subreddits
+reduced_data <- subset(data, Subreddit %in% keep_these_subreddits)
+mean_per_subreddit <- aggregate(reduced_data$compound, by=list(Category=reduced_data$Subreddit), FUN=mean)
+colnames(mean_per_subreddit) <- c("Subreddit", "compound_mean")
+
+# most negative
+head(mean_per_subreddit[order(mean_per_subreddit$compound_mean),])
+
+# most positive
+head(mean_per_subreddit[order(-mean_per_subreddit$compound_mean),])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
