@@ -1,0 +1,170 @@
+---
+title: "R_time_series"
+author: '35758'
+date: "5/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Time series analysis
+
+```{r}
+# Load in data
+comments <- read.csv("/Users/mariajoseherrera/Desktop/FTL_Hackathon/CleanedComments.csv", stringsAsFactors = FALSE, header = TRUE)
+comments
+
+submissions <- read.csv("/Users/mariajoseherrera/Desktop/FTL_Hackathon/CleanedSubmissions.csv", stringsAsFactors = FALSE, header = TRUE)
+submissions 
+
+# For data exploration
+comments$test_score <- sample(0:1, nrow(comments), replace = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+
+# Data reduction
+comments$face_mask <- sapply(regmatches(comments$Text, gregexpr("face masks?", comments$Text, perl=TRUE, ignore.case = TRUE)), length)
+
+comments$covid <- sapply(regmatches(comments$Text, gregexpr("covid", comments$Text, perl=TRUE, ignore.case = TRUE)), length)
+
+comments$corona <- sapply(regmatches(comments$Text, gregexpr("corona", comments$Text, perl=TRUE, ignore.case = TRUE)), length)
+
+comments$coronavirus <- sapply(regmatches(comments$Text, gregexpr("coronavirus", comments$Text, perl=TRUE, ignore.case = TRUE)), length)
+
+# Include only comments with face mask, covid, corona, coronavirus
+comments <- comments %>%
+  mutate(include_covid = face_mask * covid)
+
+comments <- comments %>%
+  mutate(include_corona = face_mask * corona )
+
+comments <- comments %>%
+  mutate(include_coronavirus = face_mask * coronavirus)
+
+comments <- comments %>%
+  mutate(include = ifelse(include_covid > 0 | include_corona > 0 | include_coronavirus > 0, 1, 0))
+
+comments_reduced <- dplyr::filter(comments, include > 0)
+           
+nrow(comments_reduced)
+
+# Save to csv
+write.csv(comments_reduced, "/Users/mariajoseherrera/Desktop/FTL_Hackathon/comments_reduced.csv")
+
+# Submissions
+
+
+```
+
+
+```{r}
+library("tseries")
+library("lubridate") 
+library("dplyr")
+library("fUnitRoots")
+library("forecast")
+library("DataCombine")
+library("dyn")
+
+# Time series analysis
+vader_sent <- read.csv("/Users/mariajoseherrera/Desktop/FTL_Hackathon/Comments_Vader.csv", stringsAsFactors = FALSE, header = TRUE)
+
+# Group by date
+vader_sent$new_date <- as.Date(vader_sent$Created.Date, format = "%Y-%m-%d")# new date
+
+vader_grouped <- vader_sent %>%
+  group_by(new_date) %>%
+  summarise(mean_compound = mean(compound))
+
+# Create time series
+vader_ts <- ts(vader_grouped$mean_compound, frequency = 365, start = decimal_date(as.Date("2020-02-22")))
+
+plot.ts(vader_ts)
+
+# Test for stationarity
+
+adf.test(vader_ts) # fails bc p-value > 0.05
+
+vader_diff1 <- diff(vader_ts)
+adf.test(vader_diff1) # stationary, p-value of 0.01; lag = 4, d = 1
+
+plot.ts(vader_ts)
+lines(fitted(dyn$loess(vader_ts ~ time(vader_ts))))
+
+# Select p and q values for ARIMA model
+acf(vader_diff1) # within significance bounds starting from lag = 3
+acf(vader_diff1, plot = FALSE) # within significance bounds starting from lag = 3
+
+pacf(vader_diff1)
+pacf(vader_diff1, plot = FALSE)
+
+arima_vader <- auto.arima(vader_ts)
+
+#### 
+df_ts <- as.data.frame(vader_ts)
+df_ts <- slide(df_ts, "compound", NewVar = "compound_Lag1", slideBy = -1)  # create lag1 variable
+df_ts <- slide(df_ts, "compound", NewVar = "compound_Lead1", slideBy = 1)  # create lead1 variable
+head(df_ts)
+
+# Regression with lagged term
+z <- zoo(df_ts$compound)
+lag_reg <- dyn$lm(z ~ lag(z, -1) + lag(z, -2))
+lag_reg
+
+
+```
+
+
+```{r}
+library("ggplot2")
+
+vader_reduced <- read.csv("/Users/mariajoseherrera/Desktop/FTL_Hackathon/Comments_Vader_Reduced.csv", stringsAsFactors = FALSE, header = TRUE)
+
+vader_reduced$new_date <- as.Date(vader_reduced$Created.Date, format = "%Y-%m-%d")# new date
+
+# Calculate top 5 subreddits by # of comments
+subred_freq <- table(vader_reduced$Subreddit)
+top5_subred <- as.data.frame(head(subred_freq[order(subred_freq, decreasing = TRUE)], 5))
+colnames(top5_subred) <- c("subreddit", "frequency")
+ls_top5 <- as.list(as.character(top5_subred$subreddit))
+
+# Get score by top 5 subreddits over time
+compound_by_subred <- vader_reduced %>%
+  group_by(Subreddit, new_date) %>%
+  summarise(mean_compound = mean(compound))
+
+compound_by_top5subred <- compound_by_subred[compound_by_subred$Subreddit == ls_top5,]
+
+## Plot
+plot_top5subred <- ggplot(data = compound_by_top5subred, aes(x = new_date, y = mean_compound)) +
+  geom_line(aes(color = Subreddit)) + 
+  xlab("Date") +
+  ylab("Mean Compound Score") +
+  scale_x_date(date_labels = "%b-%d", minor_breaks = function(x) seq.Date(from = min(x), to = max(x), by = "1 week")) +
+  theme_bw()
+
+ggsave("plot_top5subred.pdf", width=8, height=4)
+
+
+## Plot average compound score by day
+data_by_time <- aggregate(vader_reduced$compound, by = list(Category = vader_reduced$new_date), FUN = mean)
+colnames(data_by_time) <- c("new_date", "compound_mean")
+
+ggplot(data_by_time, aes(x = new_date, y = compound_mean)) +
+  xlab("") +
+  ylab("Average Compound VADER Score") +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) + theme_bw() + 
+  geom_smooth(method = 'loess', formula= y ~ x, se=TRUE, fullrange=FALSE, level=0.95, colour="white", alpha=.4, size=.5) +
+  geom_line(color="black") + 
+  labs(title = "Average Sentiment Score of Reddit comments mentioning \"Face Masks\"",
+              subtitle = "Smoothing: local regression fitting, 95%-confidence interval",
+              caption = "Data source: Reddit")
+ggsave("plot_avgscore_time.pdf", width=8, height=4)
+
+
+```
