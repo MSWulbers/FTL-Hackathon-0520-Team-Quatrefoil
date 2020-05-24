@@ -150,6 +150,16 @@ plot_top5subred <- ggplot(data = compound_by_top5subred, aes(x = new_date, y = m
 
 ggsave("plot_top5subred.pdf", width=8, height=4)
 
+## Plot
+plot_smoothtop5subred <- ggplot(data = compound_by_top5subred, aes(x = new_date, y = mean_compound)) +
+  geom_smooth(aes(color = Subreddit), se = FALSE) + 
+  xlab("Date") +
+  ylab("Mean Compound Score") +
+  scale_x_date(date_labels = "%b-%d", minor_breaks = function(x) seq.Date(from = min(x), to = max(x), by = "1 week")) +
+  theme_bw()
+
+ggsave("plot_smooth_top5subred.pdf", width=8, height=4)
+
 
 ## Plot average compound score by day
 data_by_time <- aggregate(vader_reduced$compound, by = list(Category = vader_reduced$new_date), FUN = mean)
