@@ -6,7 +6,6 @@ output:
 ---
 
 ```{r}
-require(igraph)
 library (scales)
 library(stringr)
 library(pals)
@@ -14,7 +13,6 @@ library(ergm)
 library(ggplot2)
 library(dplyr)
 library(ggplot2)
-print("")
 ```
 
 ```{r}
@@ -190,30 +188,34 @@ library(wordcloud)
 preprocess_corpus <- function(x){
   corpus <- VCorpus(VectorSource(x))
   my_stopwords <- c('also', 'say', 'said', 'coronavirus', 'virus', 'covid', 'people',
-                    'will', 'can', 'use', 'create', 'one', 'new', 
+                    'corona', 'will', 'can', 'use', 'create', 'one', 'new', 
                     'like', 'just', 'get', 'talk', 'make', 'think', 'even', 
                     'going', 'mask', 'masks', 'face', 'now', 'know', 'may',
                     'wearing', 'wear')
   corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, content_transformer(tolower))
   corpus <- tm_map(corpus, removeWords, words = c(stopwords("english"), my_stopwords))
   corpus <- tm_map(corpus, removePunctuation)
   corpus <- tm_map(corpus, removeNumbers)
+  dtm_corp <- DocumentTermMatrix(corpus)
+  dtm_corp <- weightTfIdf(dtm_corp)
+  freq <- data.frame(sort(colSums(as.matrix(dtm_corp)), decreasing = TRUE))
 }
+
 ```
 
 
 ```{r}
 # Negative Wordcloud
-corp_neg <- preprocess_corpus(data_most_negative$Text)
-wordcloud(corp_neg, max.words = 15, colors = brewer.pal(9, "Paired"), rot.per = 0)
-# title("Negative", sub = "Most frequently used words in negative 'face mask' comments")
+freq_neg <- preprocess_corpus(data_most_negative$Text)
+wordcloud(rownames(freq_neg), freq_neg[,1], max.words = 15, colors = brewer.pal(9, "Paired"), rot.per = 0)
 ```
 
 
 ```{r}
 # Positive wordcloud
-corp_pos <- preprocess_corpus(data_most_positive$Text)
-wordcloud(corp_pos, max.words = 15, colors = brewer.pal(4, "Paired"), rot.per = 0)
+freq_pos <- preprocess_corpus(data_most_positive$Text)
+wordcloud(rownames(freq_pos), freq_pos[,1],, max.words = 15, colors = brewer.pal(4, "Paired"), rot.per = 0)
 ```
 
 
@@ -240,18 +242,19 @@ data_may <- date_subset(DATE3,DATE4)
 
 ```{r}
 # Wordcloud March
-march_corpus <- preprocess_corpus(data_march$Text)
-wordcloud(march_corpus, max.words = 15, colors = brewer.pal(11, "BrBG"), , rot.per = 0)
+freq_march <- preprocess_corpus(data_march$Text)
+wordcloud(rownames(freq_march), freq_march[,1],, max.words = 15, colors = brewer.pal(11, "BrBG"), , rot.per = 0)
 ```
 
 ```{r}
 # Wordcloud April
-wordcloud(preprocess_corpus(data_april$Text), max.words = 20, colors = brewer.pal(7, "Accent"))
+freq_april <- preprocess_corpus(data_april$Text)
+wordcloud(rownames(freq_april), freq_april[,1],, max.words = 15, colors = brewer.pal(7, "Accent"), , rot.per = 0)
 ```
 
 ```{r}
 # Wordcloud May
-may_corpus <- preprocess_corpus(data_may$Text)
-wordcloud(may_corpus, max.words = 15, colors = brewer.pal(11, "PuOr"))
+freq_may <- preprocess_corpus(data_may$Text)
+wordcloud(rownames(freq_may), freq_may[,1], max.words = 15, colors = brewer.pal(11, "PuOr"))
 ```
 
