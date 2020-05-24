@@ -3,7 +3,7 @@ Team Quatrefoil's repository for the FTL Big Data Hackathon 2020 (https://bigdat
 
 Slides of the final presentation can be found here: https://docs.google.com/presentation/d/13cd_uSBJ0mS41ijlos6Zrk71e8Cb9vUOavLFp1jVk-E/edit?usp=sharing
 
-## The Sentiment Towards Face Masks
+## The Developing Sentiment Towards Face Masks
 #### A Reddit Analysis During the COVID-19 Pandemic
 
 Discussions about face masks and their effectiveness in preventing the spread of COVID-19 are ongoing. Acceptance by the public seems to be ambiguous: Mask opponents have been depicted in the media, but a wider, public sentiment needs to be assessed.
