@@ -1,6 +1,8 @@
 # FTL-Hackathon-0520-Team-Quatrefoil
 Team Quatrefoil's repository for the FTL Big Data Hackathon 2020 (https://bigdatahack.femaletechleaders.org/).
 
+Slides of the final presentation can be found here: https://docs.google.com/presentation/d/13cd_uSBJ0mS41ijlos6Zrk71e8Cb9vUOavLFp1jVk-E/edit?usp=sharing
+
 ## The Sentiment Towards Face Masks
 #### A Reddit Analysis During the COVID-19 Pandemic
 
@@ -13,4 +15,3 @@ This repository contains code for the analysis of this problem:
 1. Reddit Data Collection through the Pushshift API
 2. Data Cleaning
 3. Data Analysis: Descriptive Analysis & Sentiment Analysis over time
-
