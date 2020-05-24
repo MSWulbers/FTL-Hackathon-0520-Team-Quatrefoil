@@ -1,6 +1,8 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r}
@@ -14,9 +16,10 @@ library(dplyr)
 library(ggplot2)
 print("")
 ```
+
 ```{r}
 # get data
-data_sample <- read.csv("CleanedCommentsFinal.csv", stringsAsFactors = FALSE)
+data_sample <- read.csv("comments_reduced.csv", stringsAsFactors = FALSE)
 head(data_sample)
 nrow(data_sample) # 124308
 ```
@@ -43,8 +46,21 @@ nrow(comments_by_subreddit)
 
 # most important subreddits
 comments_by_subreddit <- comments_by_subreddit[order(-comments_by_subreddit$Num_of_Comments),]
-head(comments_by_subreddit)
+common_comments_by_subreddit <- head(comments_by_subreddit, 5)
 ```
+
+```{r}
+subreddit_plot <- ggplot(data = common_comments_by_subreddit, aes(x = reorder(Subreddit, -Num_of_Comments, sum), y = Num_of_Comments)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+labs(title = "Most Popular Subreddits",
+     subtitle = "Comments containing \"Face Mask\"",
+     caption = "Data source: Reddit",
+     x = "\n Subreddit",
+     y = "Num. of Comments")
+subreddit_plot
+```
+
 
 ```{r}
 # cumsum plot
@@ -64,7 +80,7 @@ ggplot() +
   annotate(geom="text", x=x_line+ 100, y=.45, label=paste("50% of comments\nwere made in only \n",  as.character(x_line), 
                                                           " subreddits.", sep=""),
            color="red", lineheight = .8, hjust = 0) + theme_bw() +
-    labs(title = "Cummulative Sum of Comments that  mention \"Face Mask\" by Subreddit",
+    labs(title = "Cumulative Sum of Comments that  mention \"Face Mask\" by Subreddit",
               caption = "Data source: Reddit")
 
 ggplot() + 
@@ -72,7 +88,7 @@ ggplot() +
   xlab("Subreddits") + ylab("Number of Comments") + geom_vline(xintercept = x_line, color = "red", size=0.5) +
   annotate(geom="text", x=x_line+ 100, y=(sum(comments_by_subreddit_plot$Num_of_Comments)/2)*0.9, label=paste("50% of comments\nwere made in only \n",  as.character(x_line), " subreddits.", sep=""),
               color="red", lineheight = .8, hjust = 0) + theme_bw() +
-  labs(title = "Cummulative Sum of Comments that  mention \"Face Mask\" by Subreddit",
+  labs(title = "Cumulative Sum of Comments that mention \"Face Mask\" by Subreddit",
               caption = "Data source: Reddit")
 
 ```
@@ -80,10 +96,6 @@ ggplot() +
 # number of comments per day
 
 ```{r}
-# comments_by_day <- aggregate(data_sample$count, by=list(Category=data_sample$date_new), FUN=sum)
-# colnames(comments_by_day) <- c("Day", "Num_of_Comments")
-# comments_by_day
-
 data_sample$date_new <- as.Date(data_sample$date_new, '%Y-%m-%d')
 
 number_of_days <- length(unique(data_sample$date_new))
@@ -101,7 +113,7 @@ ggplot(data_sample, aes(x=date_new)) + geom_histogram(binwidth=10/number_of_days
 # vader files
 
 ```{r}
-data <- read.csv("Comments_Vader.csv", stringsAsFactors = FALSE)
+data <- read.csv("/Users/merle-sophie/Desktop/FTL Hackathon 052020/Data/Comments_Vader_Reduced 2.csv", stringsAsFactors = FALSE)
 colnames(data)
 nrow(data)
 # format the date column
@@ -123,8 +135,6 @@ ggplot(data_by_time, aes(x=date_new, y=compound_mean)) +
               subtitle = "Smoothing: local regression fitting, 95%-confidence interval",
               caption = "Data source: Reddit")
 ```
-
-
 
 
 ```{r}
@@ -155,14 +165,93 @@ head(mean_per_subreddit[order(-mean_per_subreddit$compound_mean),])
 ```
 
 
+```{r}
+# Add text column to sentiment df
+data$Text <- data_sample$Text
+
+# Order by compound score
+data <- data[order(data$compound),]
+
+# Store most negative 10 percent of comments
+data_most_negative <- data[1:floor(nrow(data) * 0.1),]
+# Store most positive 10 percent of comments
+data_most_positive <- data[nrow(data) - floor(nrow(data) * 0.1):nrow(data),]
+```
 
 
+```{r}
+library(tm)
+library(wordcloud)
+
+# Create corpus for wordcloud
+# Wordcloud
+
+# Function for creating text corpora and preprocessing
+preprocess_corpus <- function(x){
+  corpus <- VCorpus(VectorSource(x))
+  my_stopwords <- c('also', 'say', 'said', 'coronavirus', 'virus', 'covid', 'people',
+                    'will', 'can', 'use', 'create', 'one', 'new', 
+                    'like', 'just', 'get', 'talk', 'make', 'think', 'even', 
+                    'going', 'mask', 'masks', 'face', 'now', 'know', 'may',
+                    'wearing', 'wear')
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removeWords, words = c(stopwords("english"), my_stopwords))
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+}
+```
 
 
+```{r}
+# Negative Wordcloud
+corp_neg <- preprocess_corpus(data_most_negative$Text)
+wordcloud(corp_neg, max.words = 15, colors = brewer.pal(9, "Paired"), rot.per = 0)
+# title("Negative", sub = "Most frequently used words in negative 'face mask' comments")
+```
 
 
+```{r}
+# Positive wordcloud
+corp_pos <- preprocess_corpus(data_most_positive$Text)
+wordcloud(corp_pos, max.words = 15, colors = brewer.pal(4, "Paired"), rot.per = 0)
+```
 
 
+```{r}
+# Function for subsetting data by dates
+date_subset <- function(x,y){
+  data[data$Created.Date >= x & data$Created.Date <= y,] # as seen in https://stackoverflow.com/a/23624174
+  } 
 
+# Transform "Created.Date" column to Date format
+data$Created.Date <- as.Date(data$Created.Date, '%Y-%m-%d')
 
+# Set dates
+DATE1 <- as.Date("2020-02-22")
+DATE2 <- as.Date("2020-03-22")
+DATE3 <- as.Date("2020-04-22")
+DATE4 <- as.Date("2020-05-22")
+
+# Subset data by month
+data_march <- date_subset(DATE1,DATE2)
+data_april <- date_subset(DATE2,DATE3)
+data_may <- date_subset(DATE3,DATE4)
+```
+
+```{r}
+# Wordcloud March
+march_corpus <- preprocess_corpus(data_march$Text)
+wordcloud(march_corpus, max.words = 15, colors = brewer.pal(11, "BrBG"), , rot.per = 0)
+```
+
+```{r}
+# Wordcloud April
+wordcloud(preprocess_corpus(data_april$Text), max.words = 20, colors = brewer.pal(7, "Accent"))
+```
+
+```{r}
+# Wordcloud May
+may_corpus <- preprocess_corpus(data_may$Text)
+wordcloud(may_corpus, max.words = 15, colors = brewer.pal(11, "PuOr"))
+```
 
